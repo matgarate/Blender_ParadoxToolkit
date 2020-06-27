@@ -1,2 +1,2 @@
-# Blender_ParadoxToolkit
-A toolkit to create 3D optical illusion in Blender.
+# Blender_ParadoxTools
+Toolkit for 3D optical illusions in Blender 
