@@ -30,8 +30,8 @@ class PARADOX_OT_add_axonometric_camera(bpy.types.Operator, IllusionAlignmentPro
     #########################################################
 
     ortho_scale : FloatProperty(
-        name = "Orthogonal Scale",
-        description = "Orthogonal scale",
+        name = "Orthographic Scale",
+        description = "Orthographic scale",
         default = 30.0,
         min = 0.01,
         max = 3000.0
