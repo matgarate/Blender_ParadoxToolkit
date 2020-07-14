@@ -3,7 +3,7 @@ bl_info = {
     "author" : "Matias Garate",
     "description" : "Tools for 3D optical illusions by Matias Garate",
     "blender" : (2, 80, 0),
-    "version" : (0, 0, 0),
+    "version" : (1, 0, 0),
     "location" : "View3D",
     "warning" : "",
     "category" : "Generic"
