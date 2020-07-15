@@ -9,7 +9,7 @@ In the [Addon Wiki](https://github.com/matgarate/Blender_ParadoxToolkit/wiki/) y
 
 
 ## Learning
-To see tutorials, experiments, and artworks using this addon you can also follow me on Twitter [@matiasgarate3d](https://twitter.com/matiasgarate3d) and Youtube [Matías Gárate](https://www.youtube.com/channel/UCctucQL4rpmhF3HywLiPzMA)
+To see tutorials, experiments, and artworks using this addon you can also follow me on Twitter [@matiasgarate3d](https://twitter.com/matiasgarate3d) and suscribe to my [Youtube Channel](https://www.youtube.com/channel/UCctucQL4rpmhF3HywLiPzMA)
 
 
 I hope you enjoy this addon!
