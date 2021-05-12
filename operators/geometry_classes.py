@@ -4,9 +4,152 @@ from mathutils import *
 
 #########################################################
 #
+#   AXONOMETRIC CAMERA MATH
+#
+#########################################################
+
+
+class AxonometricCameraMath:
+    '''
+    Includes:
+    Functions used to correct the locations of GeometryPoints according to the axonometric camera angles.
+    Functions used to align the relative vertex locations to the bisecting illusion plane, defined by the axonometric camera angles
+    '''
+
+    def __init__(self, illusion_angle_x, illusion_angle_z, axis_alignment):
+        '''
+        Axonometric correction for the side proportions.
+        ----------------
+        Inputs:
+        Float illusion_angle_x: X-Camera Rotation necessary to see the illusion [Radians]
+        Float illusion_angle_z: Z-Camera Rotation necessary to see the illusion [Radians]
+
+        axis_alignment: Axis to which the face normal is aligned (X, Y, Z).
+                         and (X+, X-, Y+, Y-, Z+, Z-)
+                        (Valid for Planes and IllusionPoints)
+        '''
+
+        self.illusion_angle_x = illusion_angle_x
+        self.illusion_angle_z = illusion_angle_z
+
+        if axis_alignment is not None:
+            self.illusion_plane_normal = self.calculate_IllusionPlaneNormal(axis_alignment[0])
+
+
+    def calculate_AxonometricFactor(self):
+        '''
+        Axonometric correction for the side proportions.
+        ----------------
+        Returns:
+        Vector[3] Axonometric_Factors
+        ----------------
+        The axonometric factors are obtained from the continuity illusion constraint of the penrose triangle.
+        When a applied (multiplied) to a figure corner locations, the figure is rescaled to preserve the continuity illusion.
+        The axonometric factors are set by default to keep the sizes in the Z-axis constant.
+        '''
+
+        illusion_angle_x, illusion_angle_z = self.illusion_angle_x, self.illusion_angle_z
+
+        x_axonometric_factor = tan(illusion_angle_x) * sin(illusion_angle_z)
+        y_axonometric_factor = tan(illusion_angle_x) * cos(illusion_angle_z)
+
+        return Vector((x_axonometric_factor, y_axonometric_factor, 1.0))
+
+    def calculate_GeometryPoint_AxonometricLocation(self, location):
+        '''
+        Calculates the position of the GeometryPoint considering the axonometric angle correction
+        ----------
+        Inputs:
+        Vector[3] location: Location of the Geometry Point (Given in the Isometric coordinates)
+        ----------------
+        Return:
+        Vector[3]: location (Corrected by the axonometric factors)
+        '''
+
+        axonometric_factor = self.calculate_AxonometricFactor()
+        axonometric_location = location.copy()
+        for i in range(len(location)):
+            axonometric_location[i] *= axonometric_factor[i]
+        return axonometric_location
+
+
+    def calculate_IllusionPlaneNormal(self, axis_alignment):
+        '''
+        Calculates the Normal vector of the bisecting plane used to create the optical illusion.
+        Vertex located around an IllusionPoint should become aligned to the Illusion Plane Normal
+        ----------
+        Inputs:
+        axis_alignment: Axis to which the illusion is aligned* (X, Y, Z)
+                        In camera view, since we want to keep it perpendicular to the camera normal.
+        ----------
+        Return:
+        Vector[3]: normal of the bisecting plane
+        '''
+
+        illusion_angle_x = self.illusion_angle_x
+        illusion_angle_z = self.illusion_angle_z
+
+        # Camera local coordinate system, written in the global coordinate system
+        x_camera = Vector((cos(illusion_angle_z), sin(illusion_angle_z), 0))
+        y_camera = Vector((-cos(illusion_angle_x) * sin(illusion_angle_z), cos(illusion_angle_x) * cos(illusion_angle_z), sin(illusion_angle_x)))
+        z_camera = Vector((sin(illusion_angle_x) * sin(illusion_angle_z), -sin(illusion_angle_x) * cos(illusion_angle_z), cos(illusion_angle_x)))
+
+        # Rotation angle to align the bisecting plane with the global X or Y axis (0 by default.)
+        angle_alpha = radians(0)
+        if axis_alignment == 'X':
+            #angle_alpha = radians(-120)
+            angle_alpha = -acos(-sin(illusion_angle_z) * cos(illusion_angle_x) / sqrt(cos(illusion_angle_z)**2 + sin(illusion_angle_z)**2 * cos(illusion_angle_x)**2))
+
+        if axis_alignment == 'Y':
+            #angle_alpha = radians(120)
+            angle_alpha = acos(-cos(illusion_angle_z) * cos(illusion_angle_x) / sqrt(sin(illusion_angle_z)**2 + cos(illusion_angle_z)**2 * cos(illusion_angle_x)**2))
+
+        # Matrix to rotate a vector along the camera z axis
+        rotation_matrix = Matrix.Rotation(angle_alpha, 3, z_camera)
+
+        # Obtain the normal of the illusion plane by rotating the y_camera vector (the one that points upward in camera view, and is aligned with the z axis)
+        illusion_plane_normal = rotation_matrix @ y_camera
+        return illusion_plane_normal
+
+
+    def calculate_IllusionDisplacement(self, vertex_location, axis_alignment):
+        '''
+        Displacement required to align a vertex with the illusion plane.
+        --------------
+        Inputs:
+        Vector[3] vertex_location
+        axis_alignment: Axis along which the vertex is moved  (X, Y, Z)
+        -------------------
+        Returns:
+        displacement_vector
+        '''
+
+        x_world = Vector((1, 0, 0))
+        y_world = Vector((0, 1, 0))
+        z_world = Vector((0, 0, 1))
+
+        # The illusion plane is perpendicular to the camera direction.
+        # We will align the vertex_location by projecting them into the illusion plane
+        illusion_plane_normal = self.illusion_plane_normal
+
+        # Set the displacement direction according to the axis the illusion is aligned to
+        displacement_direction = z_world
+        if axis_alignment == 'X':
+            displacement_direction = x_world
+        if axis_alignment == 'Y':
+            displacement_direction = y_world
+
+        displacement_vector = -illusion_plane_normal.dot(vertex_location) / illusion_plane_normal.dot(displacement_direction) * displacement_direction
+
+        return displacement_vector
+
+
+#########################################################
+#
 #   BASIC GEOMETRY OBJECT OPERATIONS
 #
 #########################################################
+
 
 class GeometryFaceOperations:
     '''
@@ -113,7 +256,6 @@ class GeometryFaceOperations:
 class GeometryAppendOperations:
     '''
     Basic Functions to append a vertex or face to the external Blender list.
-
     The child objects should define a variable valid_faces and vertex_absolute_location
     '''
 
@@ -186,19 +328,26 @@ class GeometryPoint(GeometryAppendOperations, GeometryFaceOperations):
         # Assign the point type to the GeometryPoint. It must be defined by the child objects.
         self.point_type = point_type
 
-        # Assign the axis alignment, to which an illusion object is oriented.
-        # A regular object may not have an axis_alignment
-        self.axis_alignment = axis_alignment
-
         # Assign the GeometryPoint (Isometric) location
         self.location = location
 
+        # Assign the axis alignment, to which an illusion object is oriented.
+        # A regular object may not have an axis_alignment (None)
+        self.axis_alignment = axis_alignment
+
+
+        # Math Toolbox related to the axnometric camera angles.
+        # Used to correct the geometry point locations according to the axonometric perspective
+        # Used to calculate the bisecting illusion plane and align the illusion points with the camera view
+        self.axonometric_camera_math = AxonometricCameraMath(illusion_angle_x, illusion_angle_z, axis_alignment)
+
+
         # Determine the relative position of the vertices around the GeometryPoint location (Defined by the child objects)
-        self.vertex_relative_location = self.calculate_Vertex_RelativeLocation(thickness, side_scaling, illusion_angle_x, illusion_angle_z, axis_alignment)
+        self.vertex_relative_location = self.calculate_Vertex_RelativeLocation(thickness, side_scaling)
 
         # Determine the absolute location of the vertex associated to the GeometryPoint
         # It considers the corrections made by the axonometric perspective
-        self.vertex_absolute_location = self.calculate_Vertex_AbsoluteLocation(illusion_angle_x, illusion_angle_z, apply_axonometric_correction)
+        self.vertex_absolute_location = self.calculate_Vertex_AbsoluteLocation(apply_axonometric_correction)
 
         # Assign each vertex a unique global ID that will match the order in which these are added to Blender Mesh
         self.vertex_Ids = self.assign_Vertex_Ids(base_ID)
@@ -206,154 +355,8 @@ class GeometryPoint(GeometryAppendOperations, GeometryFaceOperations):
         # This variable is used as reference to create the next GeometryPoint
         self.next_Id = self.vertex_Ids[-1] + 1
 
-
         # Initialize the valid faces to construct. (Empty by default. Child objects should fill this list)
         self.valid_faces = []
-
-
-
-    #########################################################
-    #
-    #   GEOMETRIC CALCULATION FUNCTIONS
-    #
-    #########################################################
-
-    def get_AxonometricFactor(self, illusion_angle_x, illusion_angle_z):
-        '''
-        Axonometric correction for the side proportions.
-        ----------------
-        Inputs:
-        Float illusion_angle_x: X-Camera Rotation necessary to see the illusion [Radians]
-        Float illusion_angle_z: Z-Camera Rotation necessary to see the illusion [Radians]
-        ----------------
-        Returns:
-        Vector[3] Axonometric_Factors
-        ----------------
-        The axonometric factors are obtained from the continuity illusion constraint of the penrose triangle.
-        When a applied (multiplied) to a figure corner locations, the figure is rescaled to preserve the continuity illusion.
-        The axonometric factors also can be used to find to correct some illusion proportions.
-        The axonometric factors are set by default to keep the sizes in the Z-axis constant.
-        '''
-        x_axonometric_factor = tan(illusion_angle_x) * sin(illusion_angle_z)
-        y_axonometric_factor = tan(illusion_angle_x) * cos(illusion_angle_z)
-
-        return Vector((x_axonometric_factor, y_axonometric_factor, 1.0))
-
-
-    def get_IllusionCorrection(self, thickness, side_scaling, illusion_angle_x, illusion_angle_z, axis_alignment, enforce_orientation = None):
-        '''
-        Displacement required to align a face with the line of sight.
-        --------------
-        thickness: Figure thickness
-        side_scaling[3]: Factors to rescale the thickness
-        illusion_angle_x: X-Camera Rotation necessary to see the illusion
-        illusion_angle_z: Z-Camera Rotation necessary to see the illusion
-
-        axis_alignment: Axis to which the face normal is aligned (X, Y, Z).
-        enforce_orientation: The illusion can be aligned along the:
-                             (H) Horizontal axis of the face (valid for axis_alignment = X, Y),
-                             (V) Vertical axis of the face (valid for axis_alignment = X, Y),
-                             (D) Diagonal of the face (valid for axis_alignment = Z),
-                             (X) X-Axis (valid for axis_alignment = Z)
-                             (Y) Y-Axis (valid for axis_alignment = Z)
-                             If None, then pick the shortest option for axis_alignment = X,Y, or Diagonal for axis_alignment = Z
-        -------------------
-        Returns:
-        illusion_correction: Displacement to align the face to the line of sight
-        illusion_orientation: Direction in which the correction is applied. Used to decide which vertex to move
-        '''
-
-        x_scale, y_scale, z_scale = side_scaling
-        axonometric_factor = self.get_AxonometricFactor(illusion_angle_x, illusion_angle_z)
-
-        # Find the correction for the camera angle to create the continuity illusion
-        # Illusion face aligned to the Z axis
-        if axis_alignment == "Z":
-            # Align correction across the diagonal
-            triangle_height = thickness * (x_scale * y_scale) / sqrt(x_scale**2.0 + y_scale**2.0)
-            diagonal_angle = pi - atan(x_scale / y_scale) - (illusion_angle_z)
-            diagonal_size = triangle_height / sin(diagonal_angle)
-
-            # Height correction for the vertex at the illusion location
-            illusion_correction_D = diagonal_size / tan(illusion_angle_x)
-
-
-            # Align correction across the X axis (Get dZ, given dY)
-            delta_Y = thickness * y_scale / 2
-            illusion_correction_X = delta_Y * (sin(illusion_angle_z) * tan(illusion_angle_z) + cos(illusion_angle_z)) / tan(illusion_angle_x)
-
-            # Align correction across the Y axis (Get dZ, given dX)
-            delta_X = thickness * x_scale / 2
-            illusion_correction_Y = delta_X * (sin(illusion_angle_z) + cos(illusion_angle_z) / tan(illusion_angle_z)) / tan(illusion_angle_x)
-
-            # Illusion Orientation is Diagonal
-            if enforce_orientation == "X":
-                illusion_orientation = "X"
-                illusion_correction = illusion_correction_X
-            elif enforce_orientation == "Y":
-                illusion_orientation = "Y"
-                illusion_correction = illusion_correction_Y
-            else:
-                illusion_orientation = "D"
-                illusion_correction = illusion_correction_D
-
-        # Illusion face aligned to the X axis
-        elif axis_alignment == "X":
-            # Align correction across the Horizontal axis
-            delta_Z = thickness * z_scale / 2
-            illusion_correction_H = delta_Z * axonometric_factor[0]
-
-            # Align correction across the Vertical axis
-            delta_Y = thickness * y_scale / 2
-            illusion_correction_V = delta_Y * axonometric_factor[0]/axonometric_factor[1]
-
-            # If the orientation is not enforced, pick the smallest correction
-            if (illusion_correction_H <= illusion_correction_V or enforce_orientation == "H") and enforce_orientation != "V":
-                illusion_orientation = "H"
-                illusion_correction = illusion_correction_H
-            else:
-                illusion_orientation = "V"
-                illusion_correction = illusion_correction_V
-
-        # Illusion face aligned to the Y axis
-        elif axis_alignment == "Y":
-            # Align correction across the Horizontal axis
-            delta_Z = thickness * z_scale / 2
-            illusion_correction_H = delta_Z * axonometric_factor[1]
-
-            # Align correction across the Vertical axis
-            delta_X = thickness * x_scale / 2
-            illusion_correction_V = delta_X * axonometric_factor[1]/axonometric_factor[0]
-
-            # If the orientation is not enforced, pick the smallest correction
-            if (illusion_correction_H <= illusion_correction_V or enforce_orientation == "H") and enforce_orientation != "V":
-                illusion_orientation = "H"
-                illusion_correction = illusion_correction_H
-            else:
-                illusion_orientation = "V"
-                illusion_correction = illusion_correction_V
-
-        return illusion_correction, illusion_orientation
-
-
-    def calculate_GeometryPoint_AxonometricLocation(self, location, illusion_angle_x, illusion_angle_z):
-        '''
-        Calculates the position of the GeometryPoint considering the axonometric angle correction
-        ----------
-        Inputs:
-        Vector[3] location: Location of the Geometry Point (Given in the Isometric coordinates)
-        Float illusion_angle_x: X-Camera Rotation necessary to see the illusion [Radians]
-        Float illusion_angle_z: Z-Camera Rotation necessary to see the illusion [Radians]
-        ----------------
-        Return:
-        Vector[3]: location (Corrected by the axonometric factors)
-        '''
-
-        axonometric_factor = self.get_AxonometricFactor(illusion_angle_x, illusion_angle_z)
-        axonometric_location = location.copy()
-        for i in range(len(location)):
-            axonometric_location[i] *= axonometric_factor[i]
-        return axonometric_location
 
 
     #########################################################
@@ -362,7 +365,7 @@ class GeometryPoint(GeometryAppendOperations, GeometryFaceOperations):
     #
     #########################################################
 
-    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling, illusion_angle_x, illusion_angle_z, axis_alignment = None):
+    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling):
         '''
         Abstract Function that should return the relative location of the vertex around a location.
         The child objects must implement the method to calculate these locations.
@@ -370,8 +373,7 @@ class GeometryPoint(GeometryAppendOperations, GeometryFaceOperations):
         vertex_relative_location = []
         return vertex_relative_location
 
-
-    def calculate_Vertex_AbsoluteLocation(self, illusion_angle_x, illusion_angle_z, apply_axonometric_correction = True):
+    def calculate_Vertex_AbsoluteLocation(self, apply_axonometric_correction = True):
         '''
         Calculates the absolute location of the vertex using the relative locations and the point central location.
         It also uses the illusion angles to correct the location (which is given in isometric coordinates) to match the axonometric perspective
@@ -385,7 +387,7 @@ class GeometryPoint(GeometryAppendOperations, GeometryFaceOperations):
         # Read the isometric location of the GeometryPoint and apply the axonometric correction if necessary
         absolute_location = self.location
         if apply_axonometric_correction:
-            absolute_location = self.calculate_GeometryPoint_AxonometricLocation(self.location, illusion_angle_x, illusion_angle_z)
+            absolute_location = self.axonometric_camera_math.calculate_GeometryPoint_AxonometricLocation(self.location)
 
 
         vertex_relative_location = self.vertex_relative_location
@@ -438,7 +440,7 @@ class CubePoint(GeometryPoint):
                             point_type = "CUBE")
         self.valid_faces = self.get_ValidFaceList()
 
-    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling, illusion_angle_x, illusion_angle_z, axis_alignment = None):
+    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling):
         '''
         Calculates the 8 vertices forming a cuboid (cube by default)
         ----------
@@ -460,14 +462,13 @@ class CubePoint(GeometryPoint):
         6: (1, 1, -1)
         7: (1, 1, 1)
         '''
-        vertex_relative_location = []
         x_scale, y_scale, z_scale = side_scaling
+        vertex_relative_location = []
         for i in [-1,1]:
             for j in [-1,1]:
                 for k in [-1,1]:
                     vertex_relative_location.append(Vector((i * x_scale * thickness/2, j * y_scale * thickness/2, k * z_scale * thickness/2)))
         return vertex_relative_location
-
 
 
 class PlanePoint(GeometryPoint):
@@ -487,7 +488,7 @@ class PlanePoint(GeometryPoint):
                             point_type = "PLANE")
         self.valid_faces = []
 
-    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling, illusion_angle_x, illusion_angle_z, axis_alignment = "Z"):
+    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling):
         '''
         Returns the 4 vertices around a plane.
         --------------
@@ -511,8 +512,9 @@ class PlanePoint(GeometryPoint):
         7: (1, 1, 1)
         '''
         x_scale, y_scale, z_scale = side_scaling
+        axis_alignment = self.axis_alignment
 
-        # Obtain the vertex locations, relative to the illusion points
+        # Obtain the vertex locations, relative to the center of the GeometryPoint
         vertex_relative_location = []
         for i in [-1,1]:
             for j in [-1,1]:
@@ -528,7 +530,6 @@ class PlanePoint(GeometryPoint):
                 elif axis_alignment == 'Y':
                     vertex_relative_location.append(Vector((i * x_scale * thickness/2, 0.0, j * z_scale * thickness/2)))
         return vertex_relative_location
-
 
 
 class IllusionPlanePoint(GeometryPoint):
@@ -548,17 +549,15 @@ class IllusionPlanePoint(GeometryPoint):
                             point_type = "IPLANE")
         self.valid_faces = []
 
-    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling, illusion_angle_x, illusion_angle_z, axis_alignment = "Z"):
+    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling):
         '''
         Returns the 4 vertices around a plane illusion.
         --------------
         Inputs:
         Float thickness: Figure thickness
         Vector[3] side_scaling: Factors to rescale the thickness
-        Float illusion_angle_x: X-Camera Rotation necessary to see the illusion
-        Float illusion_angle_z: Z-Camera Rotation necessary to see the illusion
 
-        axis_alignment: Axis to which the face normal is aligned (X, Y, Z).
+        axis_alignment: Axis to which the face normal is aligned/displaced (X, Y, Z).
         ----------
         Returns:
         List<Vector[3]> vertex_relative_location: List of Vectors that represent the relative location of the vertex around the GeometryPoint location
@@ -575,45 +574,29 @@ class IllusionPlanePoint(GeometryPoint):
         7: (1, 1, 1)
         '''
         x_scale, y_scale, z_scale = side_scaling
+        axis_alignment = self.axis_alignment
 
-        # Get the displacement required to align the plane with the line of sight
-        illusion_correction, illusion_orientation = self.get_IllusionCorrection(thickness, side_scaling, illusion_angle_x, illusion_angle_z, axis_alignment)
-
-        # Obtain the vertex locations, relative to the illusion points
+        # Obtain the vertex locations, relative to the center of the GeometryPoint
         vertex_relative_location = []
         for i in [-1,1]:
             for j in [-1,1]:
                 # Plane aligned with the Z axis
                 if axis_alignment == 'Z':
-                    # Set the direction of the correction according to the orientation
-                    if illusion_orientation == "D":
-                        if i*j == -1:
-                            sign = i
-                        else:
-                            sign = 0.
-                    elif illusion_orientation == "X":
-                        sign = -j
-                    elif illusion_orientation == "Y":
-                        sign = i
-                    vertex_relative_location.append(Vector((i * x_scale * thickness/2, j * y_scale * thickness/2, sign * illusion_correction)))
+                    vertex_relative_location.append(Vector((i * x_scale * thickness/2, j * y_scale * thickness/2, 0.0)))
 
                 # Plane aligned with the X axis
                 elif axis_alignment == 'X':
-                    # Set the direction of the correction according to the orientation
-                    if illusion_orientation == 'H':
-                        sign = j
-                    elif illusion_orientation == "V":
-                        sign = -i
-                    vertex_relative_location.append(Vector((sign * illusion_correction, i * y_scale * thickness/2, j * z_scale * thickness/2)))
+                    vertex_relative_location.append(Vector((0.0, i * y_scale * thickness/2, j * z_scale * thickness/2)))
 
                 # Plane aligned with the Y axis
                 elif axis_alignment == 'Y':
-                    # Set the direction of the correction according to the orientation
-                    if illusion_orientation == 'H':
-                        sign = -j
-                    elif illusion_orientation == "V":
-                        sign = -i
-                    vertex_relative_location.append(Vector((i * x_scale * thickness/2, sign * illusion_correction, j * z_scale * thickness/2)))
+                    vertex_relative_location.append(Vector((i * x_scale * thickness/2, 0.0, j * z_scale * thickness/2)))
+
+        # Displace each vertex such that it becomes aligned with the illusion plane defined by the axonometric angles
+        for i in range(len(vertex_relative_location)):
+            vertex_relative_location[i] = vertex_relative_location[i] + self.axonometric_camera_math.calculate_IllusionDisplacement(vertex_relative_location[i], axis_alignment)
+
+
         return vertex_relative_location
 
 
@@ -635,18 +618,13 @@ class IllusionCubePoint(GeometryPoint):
         self.valid_faces = self.get_ValidFaceList()
         self.remove_ValidFace(axis_alignment)
 
-    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling, illusion_angle_x, illusion_angle_z, axis_alignment = "Z+"):
+    def calculate_Vertex_RelativeLocation(self, thickness, side_scaling):
         '''
-        Returns the vertex around a half-cube illusion.
-        --------------
+        Calculates the 8 vertices forming a cuboid (cube by default)
+        ----------
         Inputs:
-        Float thickness: Figure thickness
-        Vector[3] side_scaling: Factors to rescale the thickness
-        Float illusion_angle_x: X-Camera Rotation necessary to see the illusion
-        Float illusion_angle_z: Z-Camera Rotation necessary to see the illusion
-
-        axis_alignment: Axis to which the cube Illusion normal is aligned (X-, X+, Y-, Y+, Z-, Z+).
-        Depending on the orientation the cube can be the half Left, Right, Back, Front, Down, Up.
+        Float thickness: Cube size
+        Float[3] side_scaling: Factors to rescale the cube into a cuboid
         ----------
         Returns:
         List<Vector[3]> vertex_relative_location: List of Vectors that represent the relative location of the vertex around the GeometryPoint location
@@ -663,74 +641,40 @@ class IllusionCubePoint(GeometryPoint):
         7: (1, 1, 1)
         '''
         x_scale, y_scale, z_scale = side_scaling
-        #Correction for the illusion plane in the illusion cube. Valid only for the x axis
-        #illusion_correction = z_scale * thick / 2
-
-        illusion_correction, illusion_orientation = self.get_IllusionCorrection(thickness, side_scaling, illusion_angle_x, illusion_angle_z, axis_alignment[0])
-
-        # A regular cube has i, j, k from -1, 1.
-        i_min = -1
-        i_max = 1
-
-        j_min = -1
-        j_max = 1
-
-        k_min = -1
-        k_max = 1
-
-        # Find out which half of the illusion cube is being constructed
-        # The axis alignment defines in which direction the illusion is pointing.
-        # A half cube has one of its values i, j, k values set to 0
-        if axis_alignment == "X+":
-            # Correspond to the left half of X oriented block
-            i_max = 0
-        elif axis_alignment == "X-":
-            # Correspond to the right half of X oriented block
-            i_min = 0
-
-        elif axis_alignment == "Y+":
-            # Correspond to the back half of Y oriented block
-            j_max = 0
-        elif axis_alignment == "Y-":
-            # Correspond to the front (up) half of Y oriented block
-            j_min = 0
-
-        elif axis_alignment == "Z+":
-            # Correspond to the bottom half of Z oriented block
-            k_max = 0
-        elif axis_alignment == "Z-":
-            # Correspond to the top half of Z oriented block
-            k_min = 0
-
+        axis_alignment = self.axis_alignment
 
         vertex_relative_location = []
-        for i in [i_min, i_max]:
-            for j in [j_min, j_max]:
-                for k in [k_min, k_max]:
-                    # Location of the vertex in the illusion plane (Z - alignment)
-                    if k == 0 and i*j == -1:
-                        sign = i
-                        vertex_relative_location.append(Vector((i * x_scale * thickness/2, j * y_scale * thickness/2, sign * illusion_correction)))
+        for i in [-1,1]:
+            for j in [-1,1]:
+                for k in [-1,1]:
+                    vertex_relative_location.append(Vector((i * x_scale * thickness/2, j * y_scale * thickness/2, k * z_scale * thickness/2)))
 
-                    # Location of the vertex in the illusion plane (Y - alignment)
-                    elif j == 0:
-                        if illusion_orientation == "H":
-                            sign = -k
-                        elif illusion_orientation == "V":
-                            sign = -i
-                        vertex_relative_location.append(Vector((i * x_scale * thickness/2, sign * illusion_correction, k * z_scale * thickness/2)))
+        # Find out which vertex of the cube correspond to the illusion plane, using their index in the array
+        # The axis alignment defines in which direction the illusion is pointing.
+        illusion_vertex_index = []
+        if axis_alignment == "X+":
+            # Correspond to the left half of X oriented block
+            illusion_vertex_index = [4, 5, 6, 7]
+        elif axis_alignment == "X-":
+            # Correspond to the right half of X oriented block
+            illusion_vertex_index = [0, 1, 2, 3]
+        elif axis_alignment == "Y+":
+            # Correspond to the back half of Y oriented block
+            illusion_vertex_index = [2, 3, 6, 7]
+        elif axis_alignment == "Y-":
+            # Correspond to the front (up) half of Y oriented block
+            illusion_vertex_index = [0, 1, 4, 5]
+        elif axis_alignment == "Z+":
+            # Correspond to the bottom half of Z oriented block
+            illusion_vertex_index = [1, 3, 5, 7]
+        elif axis_alignment == "Z-":
+            # Correspond to the top half of Z oriented block
+            illusion_vertex_index = [0, 2, 4, 6]
 
-                    # Location of the vertex in the illusion plane (X - alignment)
-                    elif i == 0:
-                        if illusion_orientation == "H":
-                            sign = k
-                        elif illusion_orientation == "V":
-                            sign = -j
-                        vertex_relative_location.append(Vector((sign * illusion_correction, j * y_scale * thickness/2, k * z_scale * thickness/2)))
+        # Apply the displacement to align the illusion vertex with the illusion plane
+        for v_id in illusion_vertex_index:
+            vertex_relative_location[v_id] = vertex_relative_location[v_id] + self.axonometric_camera_math.calculate_IllusionDisplacement(vertex_relative_location[v_id], axis_alignment[0])
 
-                    # Location of the vertex in a standard cube
-                    else:
-                        vertex_relative_location.append(Vector((i * x_scale * thickness/2, j * y_scale * thickness/2, k * z_scale * thickness/2)))
         return vertex_relative_location
 
 
@@ -759,25 +703,25 @@ class GeometryEdge(GeometryAppendOperations, GeometryFaceOperations):
 
 
         # Use the locations of point_A and point_B to determine the axis alignment
-        axis_alignment = self.calculate_AxisAlignment()
+        edge_axis_alignment = self.get_EdgeAxisAlignment()
 
         # Determine which of the vertex in point_A and point_B belong to the edge
-        self.vertex_Ids = self.get_Vertex_EdgeIds(axis_alignment)
+        self.vertex_Ids = self.get_Vertex_EdgeIds(edge_axis_alignment)
 
         # Get the valid faces of the edge
         self.valid_faces = self.get_ValidFaceList()
-        self.remove_EdgeFaces(axis_alignment)
+        self.remove_EdgeFaces(edge_axis_alignment)
 
 
-    def calculate_AxisAlignment(self):
+    def get_EdgeAxisAlignment(self):
         '''
         Determines the alignment of GeometryEdge using the GeometryPoint A and B locations.
         The orientation is defined as "Going from A to B"
         -----------
         Returns:
-        axis_alignment: X+, X-, Y+, Y-, Z+, Z-.
+        edge_axis_alignment: X+, X-, Y+, Y-, Z+, Z-.
         '''
-        axis_alignment = ""
+        edge_axis_alignment = ""
 
         loc_A = self.point_A.location
         loc_B = self.point_B.location
@@ -790,26 +734,26 @@ class GeometryEdge(GeometryAppendOperations, GeometryFaceOperations):
 
         # Find which axis contains the largest separation between the points A and B
         if x_distance >= y_distance and x_distance >= z_distance:
-            axis_alignment = "X"
+            edge_axis_alignment = "X"
             coordinate_index = 0
         if y_distance >= x_distance and y_distance >= z_distance:
-            axis_alignment = "Y"
+            edge_axis_alignment = "Y"
             coordinate_index = 1
         if z_distance >= x_distance and z_distance >= y_distance:
-            axis_alignment = "Z"
+            edge_axis_alignment = "Z"
             coordinate_index = 2
 
         # Find the direction in which A and B are oriented (positive or negative)
         if loc_B[coordinate_index] - loc_A[coordinate_index] >= 0 :
-            axis_alignment += "+"
+            edge_axis_alignment += "+"
         else:
-            axis_alignment += "-"
+            edge_axis_alignment += "-"
 
-        return axis_alignment
+        return edge_axis_alignment
 
 
 
-    def get_Vertex_EdgeIds(self, axis_alignment):
+    def get_Vertex_EdgeIds(self, edge_axis_alignment):
         '''
         Determines the 8 vertex that define the edge faces based on the points A and B, and the axis alignment.
         ---------
@@ -833,87 +777,87 @@ class GeometryEdge(GeometryAppendOperations, GeometryFaceOperations):
 
         if bool_TwoCubes:
             # CUBE-CUBE connection
-            if axis_alignment == "X+":
+            if edge_axis_alignment == "X+":
                 vertex_Ids = [a_id[4], a_id[5], a_id[6],a_id[7], b_id[0], b_id[1], b_id[2], b_id[3]]
-            if axis_alignment == "X-":
+            if edge_axis_alignment == "X-":
                 vertex_Ids = [b_id[4], b_id[5], b_id[6],b_id[7], a_id[0], a_id[1], a_id[2], a_id[3]]
 
-            if axis_alignment == "Y+":
+            if edge_axis_alignment == "Y+":
                 vertex_Ids = [a_id[2], a_id[3], b_id[0], b_id[1], a_id[6], a_id[7], b_id[4], b_id[5]]
-            if axis_alignment == "Y-":
+            if edge_axis_alignment == "Y-":
                 vertex_Ids = [b_id[2], b_id[3], a_id[0], a_id[1], b_id[6], b_id[7], a_id[4], a_id[5]]
 
-            if axis_alignment == "Z+":
+            if edge_axis_alignment == "Z+":
                 vertex_Ids = [a_id[1], b_id[0], a_id[3], b_id[2], a_id[5], b_id[4], a_id[7], b_id[6]]
-            if axis_alignment == "Z-":
+            if edge_axis_alignment == "Z-":
                 vertex_Ids = [b_id[1], a_id[0], b_id[3], a_id[2], b_id[5], a_id[4], b_id[7], a_id[6]]
 
         if bool_CubePlane:
             # CUBE-PLANE connection
-            if axis_alignment == "X+":
+            if edge_axis_alignment == "X+":
                 vertex_Ids = [a_id[4], a_id[5], a_id[6],a_id[7], b_id[0], b_id[1], b_id[2], b_id[3]]
-            if axis_alignment == "X-":
+            if edge_axis_alignment == "X-":
                 vertex_Ids = [b_id[0], b_id[1], b_id[2],b_id[3], a_id[0], a_id[1], a_id[2], a_id[3]]
 
-            if axis_alignment == "Y+":
+            if edge_axis_alignment == "Y+":
                 vertex_Ids = [a_id[2], a_id[3], b_id[0], b_id[1], a_id[6], a_id[7], b_id[2], b_id[3]]
-            if axis_alignment == "Y-":
+            if edge_axis_alignment == "Y-":
                 vertex_Ids = [b_id[0], b_id[1], a_id[0], a_id[1], b_id[2], b_id[3], a_id[4], a_id[5]]
 
-            if axis_alignment == "Z+":
+            if edge_axis_alignment == "Z+":
                 vertex_Ids = [a_id[1], b_id[0], a_id[3], b_id[1], a_id[5], b_id[2], a_id[7], b_id[3]]
-            if axis_alignment == "Z-":
+            if edge_axis_alignment == "Z-":
                 vertex_Ids = [b_id[0], a_id[0], b_id[1], a_id[2], b_id[2], a_id[4], b_id[3], a_id[6]]
 
         if bool_PlaneCube:
             # PLANE-CUBE connection
-            if axis_alignment == "X+":
+            if edge_axis_alignment == "X+":
                 vertex_Ids = [a_id[0], a_id[1], a_id[2],a_id[3], b_id[0], b_id[1], b_id[2], b_id[3]]
-            if axis_alignment == "X-":
+            if edge_axis_alignment == "X-":
                 vertex_Ids = [b_id[4], b_id[5], b_id[6],b_id[7], a_id[0], a_id[1], a_id[2], a_id[3]]
 
-            if axis_alignment == "Y+":
+            if edge_axis_alignment == "Y+":
                 vertex_Ids = [a_id[0], a_id[1], b_id[0], b_id[1], a_id[2], a_id[3], b_id[4], b_id[5]]
-            if axis_alignment == "Y-":
+            if edge_axis_alignment == "Y-":
                 vertex_Ids = [b_id[2], b_id[3], a_id[0], a_id[1], b_id[6], b_id[7], a_id[2], a_id[3]]
 
-            if axis_alignment == "Z+":
+            if edge_axis_alignment == "Z+":
                 vertex_Ids = [a_id[0], b_id[0], a_id[1], b_id[2], a_id[2], b_id[4], a_id[3], b_id[6]]
-            if axis_alignment == "Z-":
+            if edge_axis_alignment == "Z-":
                 vertex_Ids = [b_id[1], a_id[0], b_id[3], a_id[1], b_id[5], a_id[2], b_id[7], a_id[3]]
 
         if bool_PlanePlane:
             # PLANE-PLANE connection
-            if axis_alignment == "X+":
+            if edge_axis_alignment == "X+":
                 vertex_Ids = [a_id[0], a_id[1], a_id[2],a_id[3], b_id[0], b_id[1], b_id[2], b_id[3]]
-            if axis_alignment == "X-":
+            if edge_axis_alignment == "X-":
                 vertex_Ids = [b_id[0], b_id[1], b_id[2],b_id[3], a_id[0], a_id[1], a_id[2], a_id[3]]
 
-            if axis_alignment == "Y+":
+            if edge_axis_alignment == "Y+":
                 vertex_Ids = [a_id[0], a_id[1], b_id[0], b_id[1], a_id[2], a_id[3], b_id[2], b_id[3]]
-            if axis_alignment == "Y-":
+            if edge_axis_alignment == "Y-":
                 vertex_Ids = [b_id[0], b_id[1], a_id[0], a_id[1], b_id[2], b_id[3], a_id[2], a_id[3]]
 
-            if axis_alignment == "Z+":
+            if edge_axis_alignment == "Z+":
                 vertex_Ids = [a_id[0], b_id[0], a_id[1], b_id[1], a_id[2], b_id[2], a_id[3], b_id[3]]
-            if axis_alignment == "Z-":
+            if edge_axis_alignment == "Z-":
                 vertex_Ids = [b_id[0], a_id[0], b_id[1], a_id[1], b_id[2], a_id[2], b_id[3], a_id[3]]
 
         return vertex_Ids
 
-    def remove_EdgeFaces(self, axis_alignment):
+    def remove_EdgeFaces(self, edge_axis_alignment):
         '''
         Use the axis alignment to remove the connecting faces from GeometryEdge, and from point_A and point_B
         '''
         # Remove the faces from the Edge
-        self.remove_ValidFace(axis_alignment[0]+"+")
-        self.remove_ValidFace(axis_alignment[0]+"-")
+        self.remove_ValidFace(edge_axis_alignment[0]+"+")
+        self.remove_ValidFace(edge_axis_alignment[0]+"-")
 
         # Remove the faces from the Points
-        if axis_alignment[1] == "+":
-            self.point_A.remove_ValidFace(axis_alignment[0] + "+")
-            self.point_B.remove_ValidFace(axis_alignment[0] + "-")
+        if edge_axis_alignment[1] == "+":
+            self.point_A.remove_ValidFace(edge_axis_alignment[0] + "+")
+            self.point_B.remove_ValidFace(edge_axis_alignment[0] + "-")
 
-        if axis_alignment[1] == "-":
-            self.point_A.remove_ValidFace(axis_alignment[0] + "-")
-            self.point_B.remove_ValidFace(axis_alignment[0] + "+")
+        if edge_axis_alignment[1] == "-":
+            self.point_A.remove_ValidFace(edge_axis_alignment[0] + "-")
+            self.point_B.remove_ValidFace(edge_axis_alignment[0] + "+")
