@@ -1,6 +1,6 @@
 
 # Paradox Toolkit
-The Paradox Toolkit is an addon to create 3D optical illusions of impossible geometry in Blender 2.8. 
+The Paradox Toolkit is an addon to create 3D optical illusions of impossible geometry in Blender 2.8+. 
 The addon includes a library of impossible geometry figures, tools to align an ortographic camera with the optical illusions, and tools to manipulate your 3D objects around the impossible geometry scenes.
 
 In the [Addon Wiki](https://github.com/matgarate/Blender_ParadoxToolkit/wiki/) you can find how to install the addon, the quickstart guide, and a description for the addon tools.
