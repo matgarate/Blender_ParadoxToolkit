@@ -149,50 +149,6 @@ class PARADOX_OT_illusion_duplicate(bpy.types.Operator):
             dupli_obj = context.selected_objects[0]
             duplicated_objects.append(dupli_obj)
             
-            if False:
-                context.view_layer.objects.active = dupli_obj
-                context_constraint = bpy.context.copy()
-
-                # Set the rotation and scale to the default value, otherwise the constraints cause problems
-                original_rotation = select_obj.rotation_euler.copy()
-                original_scale = select_obj.scale.copy()
-                select_obj.rotation_euler = Vector((0,0,0))
-                dupli_obj.rotation_euler = Vector((0,0,0))
-                select_obj.scale = Vector((1,1,1))
-                dupli_obj.scale = Vector((1,1,1))
-
-                # Location constraint
-                bpy.ops.object.constraint_add(type='CHILD_OF')
-                child_constraint = context.object.constraints[-1]
-                child_constraint.name = "Child Of - Illusion"
-                child_constraint.target = select_obj
-
-                context_constraint["constraint"] = child_constraint
-                bpy.ops.constraint.childof_set_inverse(context_constraint, constraint=child_constraint.name, owner='OBJECT')
-
-                child_constraint.use_rotation_x = False
-                child_constraint.use_rotation_y = False
-                child_constraint.use_rotation_z = False
-                child_constraint.use_scale_x = False
-                child_constraint.use_scale_y = False
-                child_constraint.use_scale_z = False
-
-                # Rotation and Scale constraint
-                bpy.ops.object.constraint_add(type='COPY_ROTATION')
-                rotation_constraint = context.object.constraints[-1]
-                rotation_constraint.name = "Copy Rotation - Illusion"
-                rotation_constraint.target = select_obj
-
-                bpy.ops.object.constraint_add(type='COPY_SCALE')
-                scale_constraint = context.object.constraints[-1]
-                scale_constraint.name = "Copy Scale - Illusion"
-                scale_constraint.target = select_obj
-
-
-                # Return the rotation and constraint to the original value.
-                select_obj.rotation_euler = original_rotation
-                select_obj.scale = original_scale
-
         ############################################
         # Re-Select the original objects and the active illusion
         ############################################
