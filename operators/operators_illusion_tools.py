@@ -93,11 +93,8 @@ class PARADOX_OT_illusion_duplicate(bpy.types.Operator):
         name = "Direction",
         description = "Move the duplicate forward or backwards, relative to the camera."
     )
-    set_constraints : BoolProperty(
-        name = "Constrain Duplicate",
-        description = "Adds a 'Child Of' and 'Copy Rotation' constraints ",
-        default = True
-    )
+
+    
     linked_duplicate : BoolProperty(
         name = "Linked Duplicate",
         description = "Make a linked duplicate",
@@ -151,8 +148,8 @@ class PARADOX_OT_illusion_duplicate(bpy.types.Operator):
             # Get the duplicated object
             dupli_obj = context.selected_objects[0]
             duplicated_objects.append(dupli_obj)
-
-            if self.set_constraints:
+            
+            if False:
                 context.view_layer.objects.active = dupli_obj
                 context_constraint = bpy.context.copy()
 
