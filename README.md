@@ -5,7 +5,7 @@ The addon includes a library of impossible geometry figures, tools to align an o
 
 In the [Addon Wiki](https://github.com/matgarate/Blender_ParadoxToolkit/wiki/) you can find how to install the addon, the quickstart guide, and a description for the addon tools.
 
-The fundamental equations to construct the impossible figures are based on the paper by Tiffany C. Inglis (2014, Proceedings of Bridges).
+The fundamental equations to construct the impossible figures are based on the paper by Tiffany C. Inglis [(2014, Proceedings of Bridges)](https://archive.bridgesmathart.org/2014/bridges2014-159.html#gsc.tab=0).
 
 ## Learning
 You can check the quickstart tutorial [here.](https://youtu.be/tf6iKm49Eyk)
