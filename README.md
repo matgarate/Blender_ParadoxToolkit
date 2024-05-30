@@ -10,7 +10,7 @@ The fundamental equations to construct the impossible figures are based on the p
 ## Learning
 You can check the quickstart tutorial [here.](https://youtu.be/tf6iKm49Eyk)
 
-To see more tutorials, experiments, and artworks using this addon you can also follow me on Twitter [@matiasgarate3d](https://twitter.com/matiasgarate3d), suscribe to my [Youtube Channel](https://www.youtube.com/channel/UCctucQL4rpmhF3HywLiPzMA), and check my [portfolio](https://www.behance.net/matiasgarate3d).
+To see more tutorials, experiments, and artworks using this addon you can also follow me on Instagram [@matiasgarate.art](https://www.instagram.com/matiasgarate.art/), or suscribe to my [Youtube Channel](https://www.youtube.com/channel/UCctucQL4rpmhF3HywLiPzMA).
 
 
 
